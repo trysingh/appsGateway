@@ -1,9 +1,9 @@
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, WebSocket
 from fastapi.responses import PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from services.process_manager import pm
-from services.proxy import forward
+from services.proxy import forward, forward_ws
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -62,3 +62,12 @@ def logs(aid: str):
 async def proxy(request: Request, aid: str, path: str = ""):
     _get(aid)
     return await forward(request, pm.port(aid), path, prefix=f"/apps/{aid}")
+
+
+@router.websocket("/apps/{aid}")
+@router.websocket("/apps/{aid}/{path:path}")
+async def proxy_ws(ws: WebSocket, aid: str, path: str = ""):
+    if aid not in pm.apps:
+        await ws.close(code=1008)
+        return
+    await forward_ws(ws, pm.port(aid), path)

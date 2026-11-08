@@ -1,9 +1,9 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 import controllers
 from services.process_manager import pm
-from services.proxy import forward
+from services.proxy import forward, forward_ws
 
 
 async def watch_config():
@@ -42,4 +42,23 @@ async def subdomain_router(request: Request, call_next):
     return await call_next(request)
 
 
+class WebSocketSubdomainRouter:
+    """Pure ASGI: @app.middleware("http") never sees websocket scopes, so
+    ws://<app_id>.<base_domain>:<port>/... would fall through to the gateway and 403."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "websocket":
+            host = dict(scope["headers"]).get(b"host", b"").decode("latin-1").split(":")[0]
+            suffix = "." + pm.settings.base_domain
+            if host.endswith(suffix) and host[: -len(suffix)] in pm.apps:
+                aid = host[: -len(suffix)]
+                await forward_ws(WebSocket(scope, receive, send), pm.port(aid), scope["path"].lstrip("/"))
+                return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(WebSocketSubdomainRouter)
 app.include_router(controllers.router)
