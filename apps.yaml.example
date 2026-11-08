@@ -1,10 +1,15 @@
 gateway:
   gateway_url: http://127.0.0.1:8002   # port the gateway runs on (injected into apps as GATEWAY_URL)
-  base_domain: 192.168.1.11.nip.io    # gateway machine's IP + .nip.io
-  port_base: 9000                      # internal app ports are auto-picked from 9000-9999
+  default_mode: port                   # mode for apps that do not set their own: port | host | path (see below)
+  public_port_base: 10000              # mode port: LAN-facing ports are auto-picked from 10000-10999
+  base_domain: 192.168.1.11.nip.io    # only used by mode host (gateway machine's IP + .nip.io, needs internet DNS)
+  port_base: 9000                      # internal app ports are auto-picked from 9000-9999 (loopback only)
   stop_apps_on_exit: false             # false: apps keep running when the gateway stops or restarts
 
-# mode: host (default) -> http://<id>.<base_domain>:<gateway port>/   works for any app, no code changes
+# mode: port -> http://<address you opened the dashboard with>:<public_port>/   no DNS, no nip.io, any device on the LAN,
+#                works for any app with no code changes (pin one with public_port: 10050; needs firewall access)
+#       host -> http://<id>.<base_domain>:<gateway port>/   needs a name that resolves to the gateway (nip.io, router DNS, hosts file);
+#                <id>.localhost also works on the gateway machine itself
 #       path           -> /apps/<id>/    only for apps that use relative links / url_for (e.g. pure APIs)
 # ids: lowercase letters, digits, hyphens only
 apps:

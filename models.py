@@ -16,6 +16,8 @@ class AppConfig(BaseModel):
     env: dict[str, str] = {}
     autostart: bool = False
     mode: str = "host"              # "host" -> http://<id>.<base_domain>/  |  "path" -> /apps/<id>/
+                                    # "port" -> http://<any gateway address>:<public_port>/   (no DNS needed)
+    public_port: int | None = None  # mode "port": LAN-facing port the gateway listens on for this app
 
     @field_validator("id")
     @classmethod
@@ -28,8 +30,8 @@ class AppConfig(BaseModel):
     @field_validator("mode")
     @classmethod
     def _mode_ok(cls, v):
-        if v not in ("path", "host"):
-            raise ValueError("mode must be 'path' or 'host'")
+        if v not in ("path", "host", "port"):
+            raise ValueError("mode must be 'path', 'host' or 'port'")
         return v
 
     def signature(self) -> str:
@@ -58,7 +60,16 @@ class Settings(BaseModel):
     base_domain: str = "localhost"
     port_base: int = 9000
     stop_apps_on_exit: bool = False   # False: apps keep running when the gateway stops
+    public_port_base: int = 10000     # mode "port": public ports are auto-picked from base .. base+999
+    default_mode: str = "host"        # mode for apps that do not set their own
     apps: list[AppConfig] = []
+
+    @field_validator("default_mode")
+    @classmethod
+    def _default_mode_ok(cls, v):
+        if v not in ("path", "host", "port"):
+            raise ValueError("default_mode must be 'path', 'host' or 'port'")
+        return v
 
 
 def load_settings(path: Path) -> Settings:
@@ -71,5 +82,16 @@ def load_settings(path: Path) -> Settings:
             while p in used:
                 p += 1
             a.port = p
+            used.add(p)
+    used |= {a.port for a in s.apps}
+    used |= {a.public_port for a in s.apps if a.public_port}
+    for a in s.apps:
+        if "mode" not in a.model_fields_set:
+            a.mode = s.default_mode
+        if not a.public_port:                 # stable public port per app id, never equal to any internal port
+            p = s.public_port_base + zlib.crc32(("pub:" + a.id).encode()) % 1000
+            while p in used:
+                p += 1
+            a.public_port = p
             used.add(p)
     return s

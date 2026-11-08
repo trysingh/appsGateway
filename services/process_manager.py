@@ -70,6 +70,34 @@ class ProcessManager:
             return False
         return _alive(rec)
 
+    def app_for_host(self, host: str) -> str | None:
+        """'<id>.<base_domain>[:port]' or '<id>.localhost[:port]' -> app id.
+        *.localhost is loopback by RFC 6761, so same-machine access needs no DNS / nip.io."""
+        host = host.rsplit(":", 1)[0] if not host.startswith("[") else ""   # drop :port, ignore [ipv6] literals
+        host = host.lower().rstrip(".")
+        for domain in (self.settings.base_domain.lower(), "localhost"):
+            if host.endswith("." + domain):
+                aid = host[: -len(domain) - 1]
+                if aid in self.apps:
+                    return aid
+        return None
+
+    def link(self, a: AppConfig) -> tuple[str, int | None]:
+        """(mode, public_port) exactly as launched while the app is alive, else as configured."""
+        rec = self.state.get(a.id)
+        if rec and self._is_alive(a.id):
+            return rec["cfg"]["mode"], rec["cfg"].get("public_port")
+        return a.mode, a.public_port
+
+    def public_ports(self) -> dict[int, str]:
+        """public port -> app id, for every app whose current link mode is 'port'."""
+        out = {}
+        for a in list(self.apps.values()):
+            mode, pp = self.link(a)
+            if mode == "port" and pp:
+                out[pp] = a.id
+        return out
+
     def port(self, aid: str) -> int:
         rec = self.state.get(aid)
         return rec["port"] if rec and self._is_alive(aid) else self.apps[aid].port
@@ -160,10 +188,11 @@ class ProcessManager:
         for a in list(self.apps.values()):
             st, rec = self.status(a.id), self.state.get(a.id)
             live = st in ("running", "starting")
+            mode, public_port = self.link(a)
             rows.append({
                 "id": a.id, "name": a.label, "status": st,
                 "port": rec["port"] if live else a.port,
-                "mode": rec["cfg"]["mode"] if live else a.mode,     # link follows how it was launched
+                "mode": mode, "public_port": public_port,           # link follows how it was launched
                 "restart_needed": live and rec["sig"] != a.signature(),
                 "removed": a.id in self.removed})
         return rows

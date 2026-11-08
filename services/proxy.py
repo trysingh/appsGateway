@@ -102,3 +102,65 @@ async def forward_ws(ws: WebSocket, port: int, path: str):
                 await ws.close(code=code if code and code not in (1005, 1006, 1015) else 1000)
             except Exception:
                 pass
+
+
+class PortForwarder:
+    """One LAN-facing listener per 'port'-mode app: raw TCP <-> 127.0.0.1:<app port>.
+    Needs no DNS (open it by whatever address reached the dashboard), keeps the app at its own root,
+    and being byte-level it carries HTTP, WebSocket and SSE unchanged."""
+
+    def __init__(self, resolve):
+        self.resolve = resolve                          # app id -> current internal port
+        self.servers: dict[int, tuple[str, asyncio.AbstractServer]] = {}
+        self.failed: set[int] = set()
+
+    async def sync(self, wanted: dict[int, str]):
+        for pp in [p for p, (aid, _) in self.servers.items() if wanted.get(p) != aid]:
+            self.servers.pop(pp)[1].close()             # open connections keep running
+        for pp, aid in wanted.items():
+            if pp in self.servers:
+                continue
+            try:
+                srv = await asyncio.start_server(lambda r, w, aid=aid: self._handle(aid, r, w), port=pp)
+                self.servers[pp] = (aid, srv)
+                self.failed.discard(pp)
+            except OSError as e:
+                if pp not in self.failed:               # report once, retry silently on later syncs
+                    print(f"port-mode listener for '{aid}' on :{pp} failed: {e}")
+                    self.failed.add(pp)
+
+    async def close(self):
+        for _, srv in self.servers.values():
+            srv.close()
+        self.servers.clear()
+
+    async def _handle(self, aid, reader, writer):
+        try:
+            ur, uw = await asyncio.wait_for(asyncio.open_connection("127.0.0.1", self.resolve(aid)), 5)
+        except Exception:
+            body = b"This app is not running. Start it from the gateway dashboard."
+            writer.write(b"HTTP/1.1 503 Service Unavailable\r\nContent-Type: text/plain\r\n"
+                         b"Connection: close\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
+            await self._close(writer)
+            return
+        await asyncio.gather(self._pipe(reader, uw), self._pipe(ur, writer))
+        await asyncio.gather(self._close(uw), self._close(writer))
+
+    @staticmethod
+    async def _pipe(r, w):
+        try:
+            while chunk := await r.read(65536):
+                w.write(chunk)
+                await w.drain()
+            if w.can_write_eof():
+                w.write_eof()                           # half-close: let the other direction finish
+        except (OSError, asyncio.CancelledError):
+            w.close()
+
+    @staticmethod
+    async def _close(w):
+        try:
+            w.close()
+            await w.wait_closed()
+        except Exception:
+            pass

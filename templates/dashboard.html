@@ -1,113 +1,272 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>App Gateway</title>
-<style>
-  :root { --bg:#f3f5f7; --ink:#1b2430; --mute:#5d6b7a; --line:#d8dee5; --card:#fff;
-          --accent:#1f5fbf; --ok:#1e8a4c; --warn:#b7791f; --bad:#c0392b; --off:#9aa5b1; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#12171d; --ink:#e6ebf0; --mute:#93a1b0; --line:#2a333d; --card:#1a2129; --accent:#6aa3f0; }
-  }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink);
-         font:16px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif; }
-  main { max-width:56rem; margin:0 auto; padding:1.5rem 1rem 3rem; }
-  header { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; }
-  h1 { font-size:1.4rem; margin:0; font-weight:600; }
-  ul { list-style:none; margin:0; padding:0; background:var(--card); border:1px solid var(--line); border-radius:6px; }
-  .app { display:grid; grid-template-columns:auto 1fr; gap:.5rem .9rem; padding:.9rem 1rem; border-top:1px solid var(--line); }
-  .app.running { background: #e6ffed; }
-  .app:first-child { border-top:0; }
-  .dot { width:.7rem; height:.7rem; border-radius:50%; margin-top:.5rem; background:var(--off); }
-  .dot.running { background:var(--ok); } .dot.starting { background:var(--warn); } .dot.crashed { background:var(--bad); }
-  .who span { display:block; color:var(--mute); font-size:.9rem; }
-  .acts { grid-column:2; display:flex; flex-wrap:wrap; gap:.5rem; }
-  @media (min-width:48rem) {
-    .app { grid-template-columns:auto 1fr auto; align-items:center; }
-    .acts { grid-column:auto; }
-  }
-  button, .btn { font:inherit; font-size:.9rem; padding:.35rem .8rem; border:1px solid var(--line); border-radius:4px;
-                 background:transparent; color:var(--ink); cursor:pointer; text-decoration:none; }
-  button:hover, .btn:hover { border-color:var(--accent); }
-  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-  .btn.off { opacity:.45; pointer-events:none; }
-  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  #msg, #cfg { display:none; margin-bottom:1rem; padding:.6rem .9rem; border:1px solid var(--bad); border-radius:4px; color:var(--bad); }
-  .empty { padding:1.5rem 1rem; color:var(--mute); }
-  dialog { width:min(60rem, 94vw); border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); }
-  pre { max-height:60vh; overflow:auto; font:13px/1.4 ui-monospace, Consolas, monospace; white-space:pre-wrap; }
-</style>
-</head>
-<body>
-<main>
-  <header>
-    <h1>App Gateway</h1>
-    <button onclick="act('/admin/reload')">Reload config</button>
-  </header>
-  <div id="msg" role="alert"></div>
-  <div id="cfg" role="alert"></div>
-  <ul id="apps"></ul>
-</main>
-<dialog id="logs">
-  <h2 id="logTitle" style="font-size:1.1rem;margin-top:0"></h2>
-  <pre id="logBody"></pre>
-  <button onclick="document.getElementById('logs').close()">Close</button>
-</dialog>
-<script>
-const DOMAIN = "{{ domain }}";
-const LABEL = {running:"Running", starting:"Starting", stopped:"Stopped", crashed:"Crashed"};
-const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-function row(a) {
-  const live = a.status === "running" || a.status === "starting";
-  const sub = `${location.protocol}//${a.id}.${DOMAIN}${location.port ? ":" + location.port : ""}/`;
-  const off = a.status === "running" ? "" : "off";
-  const note = a.removed ? ", removed from apps.yaml" : a.restart_needed ? ", restart to apply config changes" : "";
-  return `<li class="app ${a.status === 'running' ? 'running' : ''}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App Gateway</title>
+  <style>
+    :root {
+      --bg: #f3f5f7;
+      --ink: #1b2430;
+      --mute: #5d6b7a;
+      --line: #d8dee5;
+      --card: #fff;
+      --accent: #1f5fbf;
+      --ok: #1e8a4c;
+      --warn: #b7791f;
+      --bad: #c0392b;
+      --off: #9aa5b1;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12171d;
+        --ink: #e6ebf0;
+        --mute: #93a1b0;
+        --line: #2a333d;
+        --card: #1a2129;
+        --accent: #6aa3f0;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    main {
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 3rem;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: .5rem .9rem;
+      padding: .9rem 1rem;
+      border-top: 1px solid var(--line);
+    }
+
+    .app.running { 
+      background: #e6ffed; 
+    }
+
+    .app:first-child {
+      border-top: 0;
+    }
+
+    .dot {
+      width: .7rem;
+      height: .7rem;
+      border-radius: 50%;
+      margin-top: .5rem;
+      background: var(--off);
+    }
+
+    .dot.running {
+      background: var(--ok);
+    }
+
+    .dot.starting {
+      background: var(--warn);
+    }
+
+    .dot.crashed {
+      background: var(--bad);
+    }
+
+    .who span {
+      display: block;
+      color: var(--mute);
+      font-size: .9rem;
+    }
+
+    .acts {
+      grid-column: 2;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+
+    @media (min-width:48rem) {
+      .app {
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+      }
+
+      .acts {
+        grid-column: auto;
+      }
+    }
+
+    button,
+    .btn {
+      font: inherit;
+      font-size: .9rem;
+      padding: .35rem .8rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    button:hover,
+    .btn:hover {
+      border-color: var(--accent);
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn.off {
+      opacity: .45;
+      pointer-events: none;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    #msg,
+    #cfg {
+      display: none;
+      margin-bottom: 1rem;
+      padding: .6rem .9rem;
+      border: 1px solid var(--bad);
+      border-radius: 4px;
+      color: var(--bad);
+    }
+
+    .empty {
+      padding: 1.5rem 1rem;
+      color: var(--mute);
+    }
+
+    dialog {
+      width: min(60rem, 94vw);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--card);
+      color: var(--ink);
+    }
+
+    pre {
+      max-height: 60vh;
+      overflow: auto;
+      font: 13px/1.4 ui-monospace, Consolas, monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <h1>App Gateway</h1>
+      <button onclick="act('/admin/reload')">Reload config</button>
+    </header>
+    <div id="msg" role="alert"></div>
+    <div id="cfg" role="alert"></div>
+    <ul id="apps"></ul>
+  </main>
+  <dialog id="logs">
+    <h2 id="logTitle" style="font-size:1.1rem;margin-top:0"></h2>
+    <pre id="logBody"></pre>
+    <button onclick="document.getElementById('logs').close()">Close</button>
+  </dialog>
+  <script>
+    const LOOPBACK = "{{ 'yes' if local else 'no' }}" === "yes" || ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname) || location.hostname.endsWith(".localhost");
+    const DOMAIN = LOOPBACK ? "localhost" : "{{ domain }}";   // same machine: no DNS / nip.io; other devices: configured base_domain
+    const LABEL = { running: "Running", starting: "Starting", stopped: "Stopped", crashed: "Crashed" };
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    function row(a) {
+      const live = a.status === "running" || a.status === "starting";
+      const sub = `${location.protocol}//${a.id}.${DOMAIN}${location.port ? ":" + location.port : ""}/`;
+      const byPort = `http://${location.hostname}:${a.public_port}/`;   // same address the dashboard was opened with
+      const off = a.status === "running" ? "" : "off";
+      const note = a.removed ? ", removed from apps.yaml" : a.restart_needed ? ", restart to apply config changes" : "";
+      return `<li class="app ${a.status === 'running' ? 'running' : ''}">
     <span class="dot ${a.status}" title="${LABEL[a.status]}"></span>
     <div class="who"><strong>${esc(a.name)}</strong><span>${esc(a.id)} on port ${a.port}, ${LABEL[a.status].toLowerCase()}${note}</span></div>
     <div class="acts">
       ${live ? `<button onclick="act('/admin/apps/${a.id}/stop')">Stop</button>
                 <button onclick="act('/admin/apps/${a.id}/restart')">Restart</button>`
-             : `<button class="primary" onclick="act('/admin/apps/${a.id}/start')">Start</button>`}
-      <a class="btn ${off}" href="${a.mode === "host" ? sub : `/apps/${a.id}/`}" target="_blank" rel="noopener">Open</a>
+          : `<button class="primary" onclick="act('/admin/apps/${a.id}/start')">Start</button>`}
+      <a class="btn ${off}" href="${a.mode === "host" ? sub : a.mode === "port" ? byPort : `/apps/${a.id}/`}" target="_blank" rel="noopener">Open</a>
       <button onclick="showLogs('${a.id}')">Logs</button>
     </div></li>`;
-}
+    }
 
-async function load() {
-  try {
-    const r = await fetch("/admin/apps");
-    const err = r.headers.get("X-Config-Error");
-    $("cfg").textContent = err ? `apps.yaml not applied: ${err}` : "";
-    $("cfg").style.display = err ? "block" : "none";
-    const apps = await r.json();
-    $("apps").innerHTML = apps.length ? apps.map(row).join("")
-      : `<li class="empty">No apps yet. Add one to apps.yaml, then choose Reload config.</li>`;
-  } catch (e) { /* gateway restarting; retry on next tick */ }
-}
+    async function load() {
+      try {
+        const r = await fetch("/admin/apps");
+        const err = r.headers.get("X-Config-Error");
+        $("cfg").textContent = err ? `apps.yaml not applied: ${err}` : "";
+        $("cfg").style.display = err ? "block" : "none";
+        const apps = await r.json();
+        $("apps").innerHTML = apps.length ? apps.map(row).join("")
+          : `<li class="empty">No apps yet. Add one to apps.yaml, then choose Reload config.</li>`;
+      } catch (e) { /* gateway restarting; retry on next tick */ }
+    }
 
-async function act(url) {
-  $("msg").style.display = "none";
-  const r = await fetch(url, {method: "POST"});
-  if (!r.ok) {
-    const d = await r.json().catch(() => ({}));
-    $("msg").textContent = d.detail || r.statusText;
-    $("msg").style.display = "block";
-  }
-  load();
-}
+    async function act(url) {
+      $("msg").style.display = "none";
+      const r = await fetch(url, { method: "POST" });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        $("msg").textContent = d.detail || r.statusText;
+        $("msg").style.display = "block";
+      }
+      load();
+    }
 
-async function showLogs(id) {
-  $("logTitle").textContent = `Logs for ${id}`;
-  $("logBody").textContent = await (await fetch(`/admin/apps/${id}/logs`)).text() || "No output yet.";
-  $("logs").showModal();
-}
+    async function showLogs(id) {
+      $("logTitle").textContent = `Logs for ${id}`;
+      $("logBody").textContent = await (await fetch(`/admin/apps/${id}/logs`)).text() || "No output yet.";
+      $("logs").showModal();
+    }
 
-load(); setInterval(load, 3000);
-</script>
+    load(); setInterval(load, 3000);
+  </script>
 </body>
+
 </html>
