@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+httpx
+pyyaml
+jinja2
+psutil

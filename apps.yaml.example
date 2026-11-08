@@ -1,0 +1,36 @@
+gateway:
+  gateway_url: http://127.0.0.1:8002   # port the gateway runs on (injected into apps as GATEWAY_URL)
+  base_domain: 192.168.1.11.nip.io    # gateway machine's IP + .nip.io
+  port_base: 9000                      # internal app ports are auto-picked from 9000-9999
+  stop_apps_on_exit: false             # false: apps keep running when the gateway stops or restarts
+
+# mode: host (default) -> http://<id>.<base_domain>:<gateway port>/   works for any app, no code changes
+#       path           -> /apps/<id>/    only for apps that use relative links / url_for (e.g. pure APIs)
+# ids: lowercase letters, digits, hyphens only
+apps:
+  - id: app1
+    name: app1
+    path: "app path/give/here"       # parent folder (working dir)
+    venv:                                             # optional
+    module: main:app                         # uvicorn target, default main:app
+    autostart: false
+
+  - id: app2
+    name: apps2
+    path: "app path/give/here"       # parent folder (working dir)
+    venv: "app path/give/here"       # optional
+    module: views.api_view:app                         # uvicorn target, default main:app
+    autostart: false
+
+  - id: app3
+    name: app3
+    path: "app path/give/here" 
+    module: app:app
+    port: 9100                                         # optional: pin a port
+    env:
+      OPENAI_API_KEY: "xxx"
+
+  - id: app4
+    name: app4
+    path: "app path/give/here" 
+    command: "python file-name.py --port {port}"  # optional: use the app's own launcher
