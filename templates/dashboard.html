@@ -13,7 +13,8 @@
       --line: #d8dee5;
       --card: #fff;
       --accent: #1f5fbf;
-      --ok: #1e8a4c;
+      --ok: #007a7a;
+      --ok-bg: #e0f2f2;
       --warn: #b7791f;
       --bad: #c0392b;
       --off: #9aa5b1;
@@ -22,11 +23,13 @@
     @media (prefers-color-scheme: dark) {
       :root {
         --bg: #12171d;
-        --ink: #e6ebf0;
+        --ink: #b6db2f;
         --mute: #93a1b0;
         --line: #2a333d;
         --card: #1a2129;
         --accent: #6aa3f0;
+        --ok: #0a1818;
+        --ok-bg: #705be9;
       }
     }
 
@@ -79,7 +82,8 @@
     }
 
     .app.running { 
-      background: #e6ffed; 
+      background: var(--ok-bg); 
+      color: var(--ok);
     }
 
     .app:first-child {
