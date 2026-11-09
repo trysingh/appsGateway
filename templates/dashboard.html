@@ -7,29 +7,32 @@
   <title>App Gateway</title>
   <style>
     :root {
-      --bg: #f3f5f7;
-      --ink: #1b2430;
-      --mute: #5d6b7a;
-      --line: #d8dee5;
-      --card: #fff;
-      --accent: #1f5fbf;
-      --ok: #007a7a;
-      --ok-bg: #e0f2f2;
-      --warn: #b7791f;
-      --bad: #c0392b;
-      --off: #9aa5b1;
+      /* Modern Color-blind friendly palette (Deuteranopia/Protanopia) */
+      --bg: #f8fafc;
+      --ink: #0f172a;
+      --mute: #64748b;
+      --line: #e2e8f0;
+      --card: #ffffff;
+      --accent: #3b82f6;
+      --ok: #0072B2;      /* Blue (Safe for red-green blindness) */
+      --ok-bg: #f0f9ff;
+      --warn: #E69F00;    /* Orange */
+      --bad: #D55E00;     /* Vermillion (Safe for red-green blindness) */
+      --off: #94a3b8;
+      --radius: 16px;
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #12171d;
-        --ink: #b6db2f;
-        --mute: #93a1b0;
-        --line: #2a333d;
-        --card: #1a2129;
-        --accent: #6aa3f0;
-        --ok: #0a1818;
-        --ok-bg: #705be9;
+        --bg: #0f172a;
+        --ink: #f1f5f9;
+        --mute: #94a3b8;
+        --line: #1e293b;
+        --card: #1e293b;
+        --accent: #60a5fa;
+        --ok: #56B4E9;
+        --ok-bg: #0c4a6e;
       }
     }
 
@@ -68,26 +71,31 @@
       list-style: none;
       margin: 0;
       padding: 0;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 6px;
+      background: transparent;
     }
 
     .app {
       display: grid;
       grid-template-columns: auto 1fr;
       gap: .5rem .9rem;
-      padding: .9rem 1rem;
-      border-top: 1px solid var(--line);
+      padding: 1.25rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 1rem;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .app:hover {
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+      transform: translateY(-2px);
     }
 
     .app.running { 
       background: var(--ok-bg); 
+      border-color: var(--ok);
       color: var(--ok);
-    }
-
-    .app:first-child {
-      border-top: 0;
     }
 
     .dot {
@@ -134,27 +142,75 @@
       }
     }
 
+    @media (max-width: 48rem) {
+      .app {
+        grid-template-columns: auto 1fr;
+      }
+      .acts {
+        grid-column: 2;
+      }
+    }
+
+    @media (max-width: 40rem) {
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+      }
+      .app {
+        grid-template-columns: 1fr;
+        gap: .75rem;
+        padding: 1rem;
+      }
+      .acts {
+        grid-column: 1;
+        justify-content: flex-start;
+        width: 100%;
+      }
+      .acts button, .acts .btn {
+        flex: 1;
+        min-width: 0;
+        font-size: .8rem;
+        padding: .4rem .2rem;
+      }
+      .dot {
+        margin-top: 0;
+      }
+    }
+
     button,
     .btn {
       font: inherit;
-      font-size: .9rem;
-      padding: .35rem .8rem;
+      font-size: .875rem;
+      font-weight: 500;
+      padding: .5rem .8rem;
       border: 1px solid var(--line);
-      border-radius: 4px;
-      background: transparent;
+      border-radius: 6px;
+      background: var(--card);
       color: var(--ink);
       cursor: pointer;
       text-decoration: none;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     button:hover,
     .btn:hover {
+      background: var(--bg);
       border-color: var(--accent);
+      color: var(--accent);
     }
 
     button.primary {
       background: var(--accent);
       border-color: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover {
+      filter: brightness(1.1);
       color: #fff;
     }
 
@@ -186,9 +242,11 @@
     dialog {
       width: min(60rem, 94vw);
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: var(--radius);
       background: var(--card);
       color: var(--ink);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
     }
 
     pre {
@@ -254,6 +312,38 @@
 
     async function act(url) {
       $("msg").style.display = "none";
+      
+      // Audio feedback
+      const isStart = url.includes('/start');
+      const isStop = url.includes('/stop');
+      if (isStart || isStop) {
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc.type = isStart ? 'sine' : 'triangle';
+          const now = ctx.currentTime;
+          
+          if (isStart) {
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+          } else {
+            osc.frequency.setValueAtTime(330, now);
+            osc.frequency.exponentialRampToValueAtTime(110, now + 0.1);
+          }
+          
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+          
+          osc.start();
+          osc.stop(now + 0.1);
+        } catch (e) { console.warn("Audio blocked by browser policy"); }
+      }
+
       const r = await fetch(url, { method: "POST" });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));

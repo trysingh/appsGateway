@@ -1,1 +1,1 @@
-{"code-assist": {"pid": 19476, "ct": 1794138257.0265586, "port": 9590, "sig": "7980a58619fa10f38d577f283789460b", "cfg": {"id": "code-assist", "name": "Code Assist", "path": "C:/Users/IN010M80866/Apps/CodeAssist", "venv": "C:/Users/IN010M80866/Apps/aCodeAssist", "python": null, "module": "views.api_view:app", "command": null, "port": 9590, "env": {}, "autostart": false, "mode": "port", "public_port": 10889}}}
+{}
