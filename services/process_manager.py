@@ -189,9 +189,17 @@ class ProcessManager:
             st, rec = self.status(a.id), self.state.get(a.id)
             live = st in ("running", "starting")
             mode, public_port = self.link(a)
+             # Determine what the user actually sees/uses
+            if mode == "port" and public_port:
+                display_port = public_port
+            elif mode == "host":
+                display_port = rec["port"] if live else a.port
+            else:
+                display_port = None  # Not port-based access
             rows.append({
                 "id": a.id, "name": a.label, "status": st,
                 "port": rec["port"] if live else a.port,
+                "display_port": display_port,  
                 "mode": mode, "public_port": public_port,           # link follows how it was launched
                 "restart_needed": live and rec["sig"] != a.signature(),
                 "removed": a.id in self.removed})

@@ -288,8 +288,8 @@
       const note = a.removed ? ", removed from apps.yaml" : a.restart_needed ? ", restart to apply config changes" : "";
       return `<li class="app ${a.status === 'running' ? 'running' : ''}">
     <span class="dot ${a.status}" title="${LABEL[a.status]}"></span>
-    <div class="who"><strong>${esc(a.name)}</strong><span>${esc(a.id)} on port ${a.port}, ${LABEL[a.status].toLowerCase()}${note}</span></div>
-    <div class="acts">
+    <div class="who"><strong>${esc(a.name)}</strong><span>${esc(a.id)} on port ${a.display_port}, ${LABEL[a.status].toLowerCase()}${note}</span></div>
+    <div class="acts"> 
       ${live ? `<button onclick="act('/admin/apps/${a.id}/stop')">Stop</button>
                 <button onclick="act('/admin/apps/${a.id}/restart')">Restart</button>`
           : `<button class="primary" onclick="act('/admin/apps/${a.id}/start')">Start</button>`}
